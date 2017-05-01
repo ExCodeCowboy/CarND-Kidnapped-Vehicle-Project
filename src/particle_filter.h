@@ -10,6 +10,8 @@
 #define PARTICLE_FILTER_H_
 
 #include "helper_functions.h"
+#include "map.h"
+#include <functional>
 
 struct Particle {
 
@@ -27,13 +29,19 @@ class ParticleFilter {
 	// Number of particles to draw
 	int num_particles; 
 	
-	
+	// Internal control noise constants
+	double velocity_noise;
+	double yaw_rate_noise;
+
 	
 	// Flag, if filter is initialized
 	bool is_initialized;
 	
 	// Vector of weights of all particles
 	std::vector<double> weights;
+
+  // Transform observation to map coordinates.
+  LandmarkObs observation_to_map(LandmarkObs &obs, Particle x);
 	
 public:
 	
@@ -72,10 +80,10 @@ public:
 	/**
 	 * dataAssociation Finds which observations correspond to which landmarks (likely by using
 	 *   a nearest-neighbors data association).
-	 * @param predicted Vector of predicted landmark observations
-	 * @param observations Vector of landmark observations
+	 * @param map Vector map landmarks
+	 * @param transformed_observations Vector of transformed landmark observations
 	 */
-	void dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations);
+  void dataAssociation(std::vector<Map::single_landmark_s> map, std::vector<LandmarkObs> &transformed_observations);
 	
 	/**
 	 * updateWeights Updates the weights for each particle based on the likelihood of the 
@@ -107,6 +115,17 @@ public:
 	const bool initialized() const {
 		return is_initialized;
 	}
+
+
+  double calculate_weight(std::vector<LandmarkObs> vector, std::vector<LandmarkObs> observations, Map map);
+
+  double
+  calculate_weight(Particle particle, std::vector<LandmarkObs> observations,
+                     std::vector<LandmarkObs> map_observations, Map map, double pDouble[]);
+
+  LandmarkObs map_to_observation(Map::single_landmark_s &s, Particle particle);
+
+  double calc_prob(double x, double y, double x1, double y1, double d, double d1);
 };
 
 
