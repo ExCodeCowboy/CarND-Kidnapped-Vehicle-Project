@@ -29,17 +29,9 @@ class ParticleFilter {
 	// Number of particles to draw
 	int num_particles; 
 	
-	// Internal control noise constants
-	double velocity_noise;
-	double yaw_rate_noise;
-
-	
 	// Flag, if filter is initialized
 	bool is_initialized;
 	
-	// Vector of weights of all particles
-	std::vector<double> weights;
-
   // Transform observation to map coordinates.
   LandmarkObs observation_to_map(LandmarkObs &obs, Particle x);
 	

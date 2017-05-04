@@ -126,8 +126,6 @@ int main() {
 				best_particle = particles[i];
 			}
 		}
-
-		cout << "GROUND " << gt[i].x << " " << gt[i].y << " " << gt[i].theta << endl;
 		double *avg_error = getError(gt[i].x, gt[i].y, gt[i].theta, best_particle.x, best_particle.y, best_particle.theta);
 
 		for (int j = 0; j < 3; ++j) {
