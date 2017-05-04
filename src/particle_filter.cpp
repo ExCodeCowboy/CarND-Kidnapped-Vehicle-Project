@@ -15,6 +15,8 @@
 
 using namespace std;
 
+//-------------------------- Broken out functions ------------------------------------
+
 //Debug output so you can see a snapshot of the current particles.
 void print_particles(string label, vector<Particle> particles) {
   for (int i = 0; i < particles.size(); ++i) {
@@ -23,6 +25,58 @@ void print_particles(string label, vector<Particle> particles) {
          << " " << particles[i].theta << " " << particles[i].weight <<endl;
   }
 }
+
+LandmarkObs observation_to_map(LandmarkObs &obs, Particle particle) {
+  //Translate to map coordinates from relative coordinates
+  double map_x = particle.x + (obs.x*cos(particle.theta)) - (obs.y * sin(particle.theta));
+  double map_y = particle.y + (obs.x*sin(particle.theta)) + (obs.y * cos(particle.theta));
+  int old_id = obs.id;
+  LandmarkObs result = LandmarkObs();
+  result.x = map_x;
+  result.y = map_y;
+  result.id = old_id;
+  return result;
+}
+
+LandmarkObs map_to_observation(Map::single_landmark_s &landmark, Particle particle) {
+  //Translate map landmark to relative observation
+  double obs_x = ((landmark.x_f-particle.x)*cos(-particle.theta)) - ((landmark.y_f-particle.y) * sin(-particle.theta));
+  double obs_y = ((landmark.x_f-particle.x)*sin(-particle.theta)) + ((landmark.y_f-particle.y) * cos(-particle.theta));
+  LandmarkObs landmarkObs = LandmarkObs();
+  landmarkObs.x = obs_x;
+  landmarkObs.y = obs_y;
+  return landmarkObs;
+}
+
+double calc_prob(double x, double y, double xm, double ym, double dev_x, double dev_y) {
+  double xPart = pow(x - xm, 2)/(2*pow(dev_x, 2));
+  double yPart = pow(y - ym, 2)/(2*pow(dev_y, 2));
+  return (1.0/(2.0*M_PI*dev_x*dev_y))*exp(-(xPart+yPart));
+}
+
+double calculate_weight(Particle particle, vector<LandmarkObs> observations,
+                        vector<LandmarkObs> map_observations, Map map, double std_landmark[]) {
+  //For a given particle apply probability for each observation.
+  double prob = 1.0;
+  for (int pos = 0; pos < observations.size(); ++pos) {
+    LandmarkObs &observation = observations[pos];
+    int landmark_id = map_observations[pos].id;
+    Map::single_landmark_s &landmark = map.landmark_list[landmark_id-1]; //position is one less.
+    LandmarkObs map_landmark = map_to_observation(landmark, particle);
+    prob = prob * calc_prob(observation.x, observation.y, map_landmark.x, map_landmark.y, std_landmark[0],
+                            std_landmark[1]);
+  }
+  return prob;
+}
+
+//Random float utility function
+float get_random()
+{
+  static std::default_random_engine e;
+  static std::uniform_real_distribution<> dis(0, 1); // range 0 - 1
+  return dis(e);
+}
+//------------------------------------------------------------------------------------
 
 
 void ParticleFilter::init(double x, double y, double theta, double std[]) {
@@ -99,7 +153,7 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 #endif
 }
 
-void ParticleFilter::dataAssociation(std::vector<Map::single_landmark_s> map, std::vector<LandmarkObs>& transformed_observations) {
+void find_closest_landmarks(std::vector<Map::single_landmark_s> map, std::vector<LandmarkObs>& transformed_observations) {
   for (int opos = 0; opos < transformed_observations.size(); ++opos) {
     double best = DBL_MAX;
     LandmarkObs &observation = transformed_observations[opos];
@@ -129,7 +183,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     }
 
     //Match to map
-    dataAssociation(map_landmarks.landmark_list, map_observations);
+    find_closest_landmarks(map_landmarks.landmark_list, map_observations);
 
     //transform both back to car space
     particle.weight = calculate_weight(particle, observations, map_observations, map_landmarks, std_landmark);
@@ -149,13 +203,6 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 #endif
 }
 
-//Random float utility function
-float get_random()
-{
-  static std::default_random_engine e;
-  static std::uniform_real_distribution<> dis(0, 1); // range 0 - 1
-  return dis(e);
-}
 
 void ParticleFilter::resample() {
   //Find largest
@@ -198,45 +245,4 @@ void ParticleFilter::write(std::string filename) {
 	dataFile.close();
 }
 
-LandmarkObs ParticleFilter::observation_to_map(LandmarkObs &obs, Particle particle) {
-  //Translate to map coordinates from relative coordinates
-  double map_x = particle.x + (obs.x*cos(particle.theta)) - (obs.y * sin(particle.theta));
-  double map_y = particle.y + (obs.x*sin(particle.theta)) + (obs.y * cos(particle.theta));
-  int old_id = obs.id;
-  LandmarkObs result = LandmarkObs();
-  result.x = map_x;
-  result.y = map_y;
-  result.id = old_id;
-   return result;
-}
 
-LandmarkObs ParticleFilter::map_to_observation(Map::single_landmark_s &landmark, Particle particle) {
-  //Translate map landmark to relative observation
-  double obs_x = ((landmark.x_f-particle.x)*cos(-particle.theta)) - ((landmark.y_f-particle.y) * sin(-particle.theta));
-  double obs_y = ((landmark.x_f-particle.x)*sin(-particle.theta)) + ((landmark.y_f-particle.y) * cos(-particle.theta));
-  LandmarkObs landmarkObs = LandmarkObs();
-  landmarkObs.x = obs_x;
-  landmarkObs.y = obs_y;
-  return landmarkObs;
-}
-
-double ParticleFilter::calculate_weight(Particle particle, vector<LandmarkObs> observations,
-                                        vector<LandmarkObs> map_observations, Map map, double std_landmark[]) {
-  //For a given particle apply probability for each observation.
-  double prob = 1.0;
-  for (int pos = 0; pos < observations.size(); ++pos) {
-    LandmarkObs &observation = observations[pos];
-    int landmark_id = map_observations[pos].id;
-    Map::single_landmark_s &landmark = map.landmark_list[landmark_id-1]; //position is one less.
-    LandmarkObs map_landmark = map_to_observation(landmark, particle);
-    prob = prob * calc_prob(observation.x, observation.y, map_landmark.x, map_landmark.y, std_landmark[0],
-                            std_landmark[1]);
-  }
-  return prob;
-}
-
-double ParticleFilter::calc_prob(double x, double y, double xm, double ym, double dev_x, double dev_y) {
-  double xPart = pow(x - xm, 2)/(2*pow(dev_x, 2));
-  double yPart = pow(y - ym, 2)/(2*pow(dev_y, 2));
-  return (1.0/(2.0*M_PI*dev_x*dev_y))*exp(-(xPart+yPart));
-}
